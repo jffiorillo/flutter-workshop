@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_workshop/animations/typer.dart';
+import 'package:flutter_workshop/animations/untyper.dart';
 import 'package:flutter_workshop/states/articles_state.dart';
 import 'package:provider/provider.dart';
 
@@ -54,9 +54,10 @@ class _HomeBody extends StatelessWidget {
               ),
               child: ListTile(
                 leading: Icon(Icons.search),
-                title: TyperAnimation(
+                title: UntyperAnimation(
                   text: ["Search", "Try Flutter", "Try Dart"],
-                  duration: Duration(seconds: 10),
+                  duration: Duration(seconds: 3),
+                  transitionDuration: Duration(seconds: 2),
                 ),
               ),
             ),

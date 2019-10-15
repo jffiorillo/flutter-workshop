@@ -1,0 +1,4 @@
+enum StoriesType {
+  topStories,
+  newStories,
+}

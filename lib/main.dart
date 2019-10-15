@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_workshop/states/articles_state.dart';
-import 'package:flutter_workshop/widgets/ArticleItemWidget.dart';
+import 'package:flutter_workshop/widgets/article_item_widget.dart';
+import 'package:flutter_workshop/widgets/article_list_progress_indicator.dart';
 import 'package:provider/provider.dart';
 
 void main() => runApp(MyApp());
@@ -43,7 +44,7 @@ class HomeBody extends StatelessWidget {
       Consumer<ArticlesState>(
           builder: (context, articleState, _) =>
           articleState.isLoading
-              ? CircularProgressIndicator()
+              ? ArticleListProgressIndicator()
               : ListView.builder(
             itemBuilder: (context, index) =>
                 ArticleItemWidget(article: articleState.articles[index])

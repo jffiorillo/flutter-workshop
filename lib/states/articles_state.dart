@@ -23,8 +23,12 @@ class ArticlesState with ChangeNotifier {
   Future<void> refresh() async {
     _isLoading = true;
     notifyListeners();
+    await api.isReady;
     _articles = await api.fetch(StoriesType.topStories);
     _isLoading = false;
+
+    api.dispose();
+
     notifyListeners();
   }
 }

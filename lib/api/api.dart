@@ -1,35 +1,125 @@
 import 'dart:async';
-import 'dart:convert' as json;
+import 'dart:io';
+import 'dart:isolate';
 
 import 'package:built_value/serializer.dart';
 import 'package:flutter_workshop/model/article.dart';
 import 'package:flutter_workshop/model/story_type.dart';
-import 'package:http/http.dart' as http;
-
 import 'exceptions.dart';
+import 'package:http/http.dart' as http;
 
 class HackerNewsApi {
   static const _rootUrl = "https://hacker-news.firebaseio.com/v0/";
 
-  Future<List<Article>> fetch(StoriesType type) async {
-    List<int> ids = await _fetchIds(type);
-    final futureArticles = ids
-        .map<Future<Article>>((articleId) async {
-          try {
-            return await _getArticle(articleId);
-          } on HackerNewsApiException catch (e) {
-            print(e);
-          }
-          return null;
-        })
-        .where((item) => item != null)
-        .toList(growable: false);
-    return await Future.wait(futureArticles);
+  SendPort _sendPort;
+  Isolate _isolate;
+  Completer<List<int>> _ids;
+  final _isolateReady = Completer<void>();
+
+  Future<void> init() async {
+    final receivePort = ReceivePort();
+    final errorPort = ReceivePort();
+    errorPort.listen(print);
+
+    receivePort.listen(_handleMessage);
+    _isolate = await Isolate.spawn(
+      _isolateEntry,
+      receivePort.sendPort,
+      onError: errorPort.sendPort,
+    );
   }
 
-  Future<List<int>> _fetchIds(StoriesType type) async {
-    final idResponse = await http.get(_generateUrl(type));
-    return parseStoryIds(idResponse.body).take(10).toList(growable: false);
+
+  HackerNewsApi(){
+    init();
+  }
+
+  Future<void> get isReady => _isolateReady.future;
+
+  void dispose() {
+    _isolate.kill();
+  }
+
+  static void _isolateEntry(dynamic message) {
+    SendPort sendPort;
+    final receivePort = ReceivePort();
+
+    receivePort.listen((dynamic message) async {
+      assert(message is String);
+      final ids = await _getIds(message);
+      sendPort.send(ids);
+    });
+
+    if (message is SendPort) {
+      sendPort = message;
+      sendPort.send(receivePort.sendPort);
+      return;
+    }
+  }
+  static Future<List<int>> _getIds(String url) async {
+    http.Response response;
+    try {
+      response = await http.get(url);
+    } on SocketException catch (e) {
+      throw HackerNewsApiError("$url couldn't be fetched: $e");
+    }
+    if (response.statusCode != 200) {
+      throw HackerNewsApiError("$url returned non-HTTP200");
+    }
+
+    var result = parseStoryIds(response.body);
+
+    return result.take(10).toList();
+  }
+
+  void _handleMessage(dynamic message) {
+    if (message is SendPort) {
+      _sendPort = message;
+      _isolateReady.complete();
+      return;
+    }
+
+    if (message is List<int>) {
+      _ids?.complete(message);
+      _ids = null;
+      return;
+    }
+
+    throw UnimplementedError("Undefined behavior for message: $message");
+  }
+
+  Future<List<Article>> fetch(StoriesType type) async {
+    final ids = await _fetchIds(type);
+    return _getArticles(ids);
+  }
+
+  Future<List<int>> _fetchIds(StoriesType type) {
+    var partUrl = type == StoriesType.topStories ? 'top' : 'new';
+    var url = '$_rootUrl${partUrl}stories.json';
+
+    _sendPort.send(url);
+
+    _ids = Completer<List<int>>();
+    return _ids.future;
+  }
+
+  Future<List<Article>> _getArticles(List<int> articleIds) async {
+    final results = <Article>[];
+
+    // We are running the fetch of each article in parallel with Future.wait.
+    // Here, we catch HackerNewsApiExceptions so that one API exception
+    // doesn't stop the whole fetch.
+    var futureArticles = articleIds.map<Future<void>>((id) async {
+      try {
+        var article = await _getArticle(id);
+        results.add(article);
+      } on HackerNewsApiException catch (e) {
+        print(e);
+      }
+    });
+    await Future.wait(futureArticles);
+    var filtered = results.where((a) => a.title != null).toList();
+    return filtered;
   }
 
   Future<Article> _getArticle(int id) async {
@@ -48,10 +138,4 @@ class HackerNewsApi {
       throw HackerNewsApiException(message: "Connection failed.");
     }
   }
-
-  List<int> parseStoryIds(String jsonStr) =>
-      List<int>.from(json.jsonDecode(jsonStr));
-
-  String _generateUrl(StoriesType type) =>
-      '$_rootUrl${(type == StoriesType.topStories ? 'top' : 'new')}stories.json';
 }

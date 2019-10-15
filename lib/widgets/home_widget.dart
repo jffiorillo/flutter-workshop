@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_workshop/animations/typer.dart';
 import 'package:flutter_workshop/states/articles_state.dart';
 import 'package:provider/provider.dart';
 
@@ -26,9 +27,40 @@ class _HomeBody extends StatelessWidget {
   Widget build(BuildContext context) => Consumer<ArticlesState>(
       builder: (context, articleState, _) => articleState.isLoading
           ? ArticleListProgressIndicator()
-          : ListView.builder(
+          : _buildContent(articleState));
+
+  Widget _buildContent(articleState) => Column(
+        children: <Widget>[
+          _buildSearchButton(),
+          Expanded(
+            child: ListView.builder(
               itemBuilder: (context, index) =>
                   ArticleItemWidget(article: articleState.articles[index]),
               itemCount: articleState.articles.length,
-            ));
+            ),
+          ),
+        ],
+      );
+
+  Widget _buildSearchButton() => Padding(
+        padding: EdgeInsets.symmetric(horizontal: 8),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: GestureDetector(
+            onTap: () {},
+            child: Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15.0),
+              ),
+              child: ListTile(
+                leading: Icon(Icons.search),
+                title: TyperAnimation(
+                  text: ["Search", "Try Flutter", "Try Dart"],
+                  duration: Duration(seconds: 10),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 }
